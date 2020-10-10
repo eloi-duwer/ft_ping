@@ -6,7 +6,7 @@
 /*   By: eduwer <eduwer@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2020/06/30 18:31:52 by eduwer            #+#    #+#             */
-/*   Updated: 2020/07/10 17:40:41 by eduwer           ###   ########.fr       */
+/*   Updated: 2020/10/11 00:48:52 by eduwer           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,40 +20,53 @@
 # include <sys/time.h>
 # include <unistd.h>
 # include <netdb.h>
+# include <netinet/ip_icmp.h>
 # include <signal.h>
+# include <errno.h>
+# include <stdbool.h>
+# include <stddef.h>
+# include <float.h>
+# include <math.h>
+
 //En attendant la libft
 # include <string.h>
-# define REQ_SIZE 64
-# define ECHO_REQ 8
-# define ECHO_RES 0
-# define TIMEOUT_REQ 5
 
-typedef enum 		e_bool {
-	false,
-	true
-}					t_bool;
+# define PAYLOAD_SIZE 56
+
+typedef struct		s_stats {
+	int				nb_received;
+	double			rtt_min;
+	double			rtt_max;
+	double			rtt_tot;
+	double			rtt_squared;
+	struct timeval	start_time;
+}					t_stats;
 
 typedef	struct		s_infos {
-	unsigned short	seq;
-	t_bool			timeout;
-	
+	unsigned short		seq;
+	bool				verbose;
+	int					ttl;
+	int					sockfd;
+	struct sockaddr_in	addr;
+	char				*addr_name;
+	t_stats				stats;
 }					t_infos;
 
 extern t_infos		g_infos;
 
-typedef struct		s_icmp_header {
-	unsigned char	type;
-	unsigned char	code;
-	unsigned short	checksum;
-	unsigned short	id;
-	unsigned short	seq;
-}					t_icmp_header;
-
 typedef struct		s_echo_req {
-	t_icmp_header	header;
-	struct timeval	time;
-	char			data[REQ_SIZE];
+	struct iphdr	ip_header;
+	struct icmphdr	icmp_header;
+	char			payload[PAYLOAD_SIZE];
 }					t_echo_req;
+
+void	send_ping(int signb);
+void	await_pongs(void);
+void	perror_and_exit(char *str);
+double	get_ms(struct timeval *time);
+void	print_help(void);
+void	print_packet(t_echo_req *packet);
+char	*get_domain(uint32_t ip);
 
 #endif
 

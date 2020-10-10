@@ -1,4 +1,7 @@
-SRC_NAME = main.c
+SRC_NAME = main.c \
+	send_ping.c \
+	await_pongs.c \
+	utils.c
 
 NAME = ft_ping
 
@@ -15,7 +18,7 @@ OBJS = $(addprefix $(OBJF), $(SRC_NAME:.c=.o))
 all: $(NAME)
 
 $(NAME): $(OBJS)
-	$(CC) -o $(NAME) $(OBJS) -Wall -Wextra
+	$(CC) -o $(NAME) $(OBJS) -Wall -Wextra -lm
 
 $(OBJF)%.o: $(SRCF)%.c
 	@mkdir -p $(@D)

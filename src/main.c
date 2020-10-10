@@ -6,7 +6,7 @@
 /*   By: eduwer <eduwer@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2020/06/30 18:34:20 by eduwer            #+#    #+#             */
-/*   Updated: 2020/07/10 17:41:47 by eduwer           ###   ########.fr       */
+/*   Updated: 2020/10/10 23:17:47 by eduwer           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,117 +15,142 @@
 t_infos	g_infos =
 {
 	.seq = 0,
-	.timeout = false
+	.verbose = false,
+	.ttl = 64,
+	.addr_name = NULL
 };
 
-void	print_help(void)
+void	get_address(char *str)
 {
-	printf("Usage: ft_ping [options] <destination>\n\nOptions:\n  \
-<destination>\tdns name or op address\n  -v\tverbose output\n  \
--h\tprint help and exit\n");
+	struct addrinfo hints;
+	struct addrinfo *ret;
+
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_RAW;
+	hints.ai_protocol = IPPROTO_ICMP;
+	hints.ai_flags = AI_CANONNAME;
+	if (getaddrinfo(str, NULL, &hints, &ret) != 0)
+		perror_and_exit("Cannot convert address to ip");
+	g_infos.addr.sin_addr.s_addr = ((struct sockaddr_in *)ret->ai_addr)->sin_addr.s_addr;
+	g_infos.addr_name = str;
+	freeaddrinfo(ret);
+}
+
+void	parse_args(int ac, char **av)
+{
+	int i;
+
+	i = 1;
+	while (i < ac)
+	{
+		if (av[i][0] == '-')
+		{
+			if (strcmp(av[i], "-h") == 0)
+				print_help();
+			else if (strcmp(av[i], "-v") == 0)
+				g_infos.verbose = true;
+			else if (strcmp(av[i], "-t") == 0)
+			{
+				if (i == ac - 1)
+				{
+					printf("ttl must be an integer between 1 and 255\n");
+					exit(1);
+				}
+				g_infos.ttl = atoi(av[i + 1]);
+				if (g_infos.ttl <= 0 || g_infos.ttl > 255)
+				{
+					printf("ttl must be an integer between 1 and 255\n");
+					exit(1);
+				}
+				i++;
+			}
+			else
+			{
+				printf("Unrecognized option: %s\n", av[i]);
+			}
+			
+		}
+		else if (g_infos.addr_name == NULL)
+			get_address(av[i]);
+		else
+			print_help();
+		i++;
+	}
+}
+
+void	create_socket()
+{
+	struct timeval	timeout;		
+
+	timeout.tv_sec = 5;
+	timeout.tv_usec = 0;
+	g_infos.sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+	if (g_infos.sockfd == -1)
+		perror_and_exit("Cannot open socket");
+	if (setsockopt(g_infos.sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1
+		|| setsockopt(g_infos.sockfd, IPPROTO_IP, IP_HDRINCL, (int[1]){1}, sizeof(int)) == -1)
+	{
+		perror_and_exit("Error while setting socket options");
+	}
+}
+
+static void	exit_prog(int signb)
+{
+	struct timeval	current;
+	double			mean;
+	double			std_dev;
+
+	(void)signb;
+	close(g_infos.sockfd);
+	printf("\n--- %s ping statistics ---\n", g_infos.addr_name);
+	printf("%d packets transmitted, %d received, ", g_infos.seq, g_infos.stats.nb_received);
+	if (g_infos.seq != g_infos.stats.nb_received)
+		printf("+%d errors, ", g_infos.seq - g_infos.stats.nb_received);
+	gettimeofday(&current, NULL);
+	printf("%.f%% packet loss, time %.fms\n",  (double)(g_infos.seq - g_infos.stats.nb_received) / (double)g_infos.seq * 100.0f, \
+		get_ms(&current) - get_ms(&g_infos.stats.start_time));
+	if (g_infos.stats.nb_received != 0)
+	{
+		mean = (double)g_infos.stats.rtt_tot / (double)g_infos.stats.nb_received;
+		g_infos.stats.rtt_squared /= g_infos.stats.nb_received;
+		std_dev = sqrt(g_infos.stats.rtt_squared - mean * mean);
+		printf("rtt min/max/avg/mdev = %.3f/%.3f/%.3f/%.3f ms\n", g_infos.stats.rtt_min, \
+			g_infos.stats.rtt_max, mean, std_dev);
+	}
 	exit(0);
 }
 
-void	setSockOptions(int sockfd)
+static void	init_stats()
 {
-	int				ttl;
-	struct timeval	timeout;
-	
-	ttl = 128;
-	timeout.tv_sec = 5;
-	timeout.tv_usec = 0;
-	if (setsockopt(sockfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)) == -1 \
-	 || setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, \
-	 	&timeout, sizeof(timeout)) == -1)
-	{
-		printf("Error while setting socket options\n");
-		exit(1);
-	}
+	g_infos.stats.rtt_max = 0.0f;
+	g_infos.stats.rtt_min = 0.0f;
+	g_infos.stats.rtt_tot = 0;
+	g_infos.stats.rtt_squared = 0;
+	g_infos.stats.nb_received = 0;
+	if (gettimeofday(&g_infos.stats.start_time, NULL) == -1)
+		perror("Error during gettimeofday");
 }
 
-unsigned short	checksum(t_echo_req *req)
+void	print_start_ping(void)
 {
-	unsigned short		res;
-	unsigned short		*ptr;
-	long unsigned int	i;
+	char	dest[100];
 
-	res = 0;
-	i = 0;
-	ptr = (unsigned short *)req;
-	while (i < sizeof(t_echo_req) / 2)
-	{
-		res += ptr[i];
-		++i;
-	}
-	return (~res);
+	if (inet_ntop(AF_INET, &g_infos.addr.sin_addr.s_addr, dest, 99) == NULL)
+		perror_and_exit("Error during inet_ntop");
+	printf("PING %s (%s) %d(%ld) bytes of data.\n", g_infos.addr_name, dest, PAYLOAD_SIZE, sizeof(t_echo_req));
 }
 
-void			send_ping(int sockfd, struct addrinfo *addr)
+int		main(int argc, char **argv)
 {
-	t_echo_req		req;
-	int				size;
-	int				ret;
-
-	req.header.type = ECHO_REQ;
-	req.header.code = 0;
-	req.header.checksum = 0;
-	req.header.id = 0;
-	req.header.seq = g_infos.seq++;
-	memset(req.data, ' ', REQ_SIZE);
-	gettimeofday(&req.time, NULL);
-	req.header.checksum = checksum(&req);
-	size = sendto(sockfd, (void *)&req, sizeof(req), 0, addr->ai_addr, \
-		sizeof(*(addr->ai_addr)));
-	printf("sent %d bytes of data\n", size);
-	alarm(TIMEOUT_REQ);
-	while (g_infos.timeout == false)
-	{
-		ret = recvmsg()
-		
-	}
-}
-
-static void		alarm_handler(int nb)
-{
-	(void)nb;
-	g_infos.timeout = true;
-}
-
-int				main(int argc, char **argv)
-{
-	struct addrinfo hint;
-	struct addrinfo	*addr;
-	char	str[255];
-	void	*ptrr;
-	int		sockfd;
-
 	if (argc == 1)
 		print_help();
-	signal(SIGALRM, &alarm_handler);
-	hint.ai_family = AF_INET;
-	hint.ai_socktype = SOCK_RAW;
-	hint.ai_protocol = IPPROTO_ICMP;
-	hint.ai_flags = AI_CANONNAME;
-	getaddrinfo(argv[1], NULL, &hint, &addr);
-	inet_ntop(addr->ai_family, addr->ai_addr->sa_data, str, 255);
-	switch (addr->ai_family)
-	{
-		case AF_INET:
-			ptrr = &((struct sockaddr_in *) addr->ai_addr)->sin_addr;
-			break;
-		case AF_INET6:
-			ptrr = &((struct sockaddr_in6 *) addr->ai_addr)->sin6_addr;
-			break;
-	}
-	inet_ntop (addr->ai_family, ptrr, str, 255);
-	printf ("IPv%d address: %s (%s)\n", addr->ai_family == PF_INET6 ? 6 : 4,
-		str, addr->ai_canonname);
-	if ((sockfd = socket(AF_INET, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, IPPROTO_ICMP)) == -1)
-	{
-		printf("Can't open socket\n");
-		exit(1);
-	}
-	setSockOptions(sockfd);
-	send_ping(sockfd, addr);
-	
+	signal(SIGALRM, &send_ping);
+	signal(SIGINT, &exit_prog);
+	parse_args(argc, argv);
+	create_socket();
+	init_stats();
+	print_start_ping();
+	send_ping(0);
+	await_pongs();
+	return (0);
 }
