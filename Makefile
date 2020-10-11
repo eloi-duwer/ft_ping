@@ -7,7 +7,7 @@ NAME = ft_ping
 
 CC = gcc
 
-CFLAGS = -Wall -Wextra -g -I./include
+CFLAGS = -Wall -Wextra -I./include -I./libft/include
 
 SRCF = ./src/
 
@@ -15,10 +15,16 @@ OBJF = ./obj/
 
 OBJS = $(addprefix $(OBJF), $(SRC_NAME:.c=.o))
 
+LFT =libft/libft.a
+
+
 all: $(NAME)
 
-$(NAME): $(OBJS)
-	$(CC) -o $(NAME) $(OBJS) -Wall -Wextra -lm
+$(LFT):
+	make -C ./libft
+
+$(NAME): $(LFT) $(OBJS)
+	$(CC) -o $(NAME) $(OBJS) -Wall -Wextra -lm -L./libft -lft
 
 $(OBJF)%.o: $(SRCF)%.c
 	@mkdir -p $(@D)

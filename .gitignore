@@ -1,2 +1,4 @@
 ft_ping
 obj/
+libft/obj
+libft/libft.a

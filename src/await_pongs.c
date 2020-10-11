@@ -6,7 +6,7 @@
 /*   By: eduwer <eduwer@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2020/10/10 16:12:35 by eduwer            #+#    #+#             */
-/*   Updated: 2020/10/11 00:50:26 by eduwer           ###   ########.fr       */
+/*   Updated: 2020/10/11 13:20:07 by eduwer           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,10 +15,10 @@
 void	fill_msghdr(struct msghdr *message, struct iovec *io, \
 	t_echo_req *response, void *control_buffer, size_t ctrl_len)
 {
-	bzero(io, sizeof(struct iovec));
-	bzero(message, sizeof(struct msghdr));
-	bzero(response, sizeof(t_echo_req));
-	bzero(control_buffer, ctrl_len);
+	ft_bzero(io, sizeof(struct iovec));
+	ft_bzero(message, sizeof(struct msghdr));
+	ft_bzero(response, sizeof(t_echo_req));
+	ft_bzero(control_buffer, ctrl_len);
 	io->iov_base = response;
 	io->iov_len = sizeof(t_echo_req);
 	message->msg_name = NULL;
@@ -62,17 +62,37 @@ static char	*get_icmp_response(int type)
 		return (NULL);
 }
 
+static void	print_timestamp(struct timeval *timestamp)
+{
+	struct timeval current;
+	if (g_infos.print_timestamps == false)
+		return;
+	if (timestamp == NULL)
+	{
+		if (gettimeofday(&current, NULL) == -1)
+			perror_and_exit("Error during gettimeofday");
+		timestamp = &current;
+	}
+	printf("[%ld.%06ld] ", timestamp->tv_sec, timestamp->tv_usec);
+}
+
 static void	handle_icmp_types(t_echo_req *res)
 {
 	char	sender[100];
 
 	if (inet_ntop(AF_INET, &res->ip_header.saddr, sender, 99) == NULL)
 		perror_and_exit("Error during inet_ntop");
-
-	printf("From %s (%s) icmp_seq=%hd %s\n", \
-		get_domain(res->ip_header.saddr), sender, \
-		ntohs(res->icmp_header.un.echo.sequence), \
-		get_icmp_response(res->icmp_header.type));
+	print_timestamp(NULL);
+	if (g_infos.no_dns == true)
+		printf("From %s icmp_seq=%hd %s\n", \
+			sender, \
+			ntohs(res->icmp_header.un.echo.sequence), \
+			get_icmp_response(res->icmp_header.type));
+	else
+		printf("From %s (%s) icmp_seq=%hd %s\n", \
+			get_domain(res->ip_header.saddr), sender, \
+			ntohs(res->icmp_header.un.echo.sequence), \
+			get_icmp_response(res->icmp_header.type));
 }
 
 static void	print_and_update_infos(t_echo_req *res)
@@ -92,9 +112,15 @@ static void	print_and_update_infos(t_echo_req *res)
 	difftime = get_ms(&current) - get_ms(precedent);
 	if (inet_ntop(AF_INET, &res->ip_header.saddr, sender, 99) == NULL)
 		perror_and_exit("Error during inet_ntop");
-	printf("%ld bytes from %s (%s): icmp_seq=%hd ttl=%hd time=%.1f ms\n", \
-		ntohs(res->ip_header.tot_len) - sizeof(struct iphdr), get_domain(res->ip_header.saddr), sender, \
-		ntohs(res->icmp_header.un.echo.sequence), res->ip_header.ttl, difftime);
+	print_timestamp(&current);
+	if (g_infos.no_dns == true)
+		printf("%ld bytes from %s: icmp_seq=%hd ttl=%hd time=%.1f ms\n", \
+			ntohs(res->ip_header.tot_len) - sizeof(struct iphdr), sender, \
+			ntohs(res->icmp_header.un.echo.sequence), res->ip_header.ttl, difftime);
+	else
+		printf("%ld bytes from %s (%s): icmp_seq=%hd ttl=%hd time=%.1f ms\n", \
+			ntohs(res->ip_header.tot_len) - sizeof(struct iphdr), get_domain(res->ip_header.saddr), sender, \
+			ntohs(res->icmp_header.un.echo.sequence), res->ip_header.ttl, difftime);
 	g_infos.stats.nb_received++;
 	if (g_infos.stats.rtt_max == 0.0f || g_infos.stats.rtt_max < difftime)
 		g_infos.stats.rtt_max = difftime;
@@ -102,6 +128,8 @@ static void	print_and_update_infos(t_echo_req *res)
 		g_infos.stats.rtt_min = difftime;
 	g_infos.stats.rtt_tot += difftime;
 	g_infos.stats.rtt_squared += difftime * difftime;
+	if (g_infos.stop_count > 0 && g_infos.stats.nb_received >= g_infos.stop_count)
+		raise(SIGINT);
 }
 
 void		await_pongs()

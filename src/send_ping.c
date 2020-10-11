@@ -6,7 +6,7 @@
 /*   By: eduwer <eduwer@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2020/10/10 16:01:00 by eduwer            #+#    #+#             */
-/*   Updated: 2020/10/11 00:39:46 by eduwer           ###   ########.fr       */
+/*   Updated: 2020/10/11 13:18:50 by eduwer           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -51,7 +51,7 @@ static void				fill_icmp_header(t_echo_req *req)
 	req->icmp_header.code = 0;
 	req->icmp_header.un.echo.id = htons(getpid());
 	req->icmp_header.un.echo.sequence = htons(g_infos.seq);
-	memset(&req->payload, 0, sizeof(char) * PAYLOAD_SIZE);
+	ft_memset(&req->payload, 0, sizeof(char) * PAYLOAD_SIZE);
 	if (gettimeofday((void *)&req->payload, NULL) == -1)
 		perror_and_exit("Error during gettimeofday");
 	req->icmp_header.checksum = 0;
@@ -65,7 +65,7 @@ void					send_ping(int signb)
 
 	(void)signb;
 	g_infos.seq++;
-	memset(&req, 0, sizeof(t_echo_req));
+	ft_memset(&req, 0, sizeof(t_echo_req));
 	fill_ip_header(&req);
 	fill_icmp_header(&req);
 	ret = sendto(g_infos.sockfd, &req, sizeof(t_echo_req), 0, (struct sockaddr *)&g_infos.addr, sizeof(struct sockaddr));
@@ -76,5 +76,4 @@ void					send_ping(int signb)
 		printf("Sent request, %d bytes\n", ret);
 		print_packet(&req);
 	}
-	alarm(1);
 }

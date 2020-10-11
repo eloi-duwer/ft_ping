@@ -6,7 +6,7 @@
 /*   By: eduwer <eduwer@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2020/06/30 18:31:52 by eduwer            #+#    #+#             */
-/*   Updated: 2020/10/11 00:48:52 by eduwer           ###   ########.fr       */
+/*   Updated: 2020/10/11 13:16:45 by eduwer           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -27,9 +27,7 @@
 # include <stddef.h>
 # include <float.h>
 # include <math.h>
-
-//En attendant la libft
-# include <string.h>
+# include <libft.h>
 
 # define PAYLOAD_SIZE 56
 
@@ -45,6 +43,11 @@ typedef struct		s_stats {
 typedef	struct		s_infos {
 	unsigned short		seq;
 	bool				verbose;
+	bool				no_dns;
+	bool				print_timestamps;
+	unsigned int		timeout;
+	unsigned int		ping_interval;
+	int					stop_count;
 	int					ttl;
 	int					sockfd;
 	struct sockaddr_in	addr;

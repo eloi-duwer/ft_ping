@@ -6,7 +6,7 @@
 /*   By: eduwer <eduwer@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2020/10/10 23:17:50 by eduwer            #+#    #+#             */
-/*   Updated: 2020/10/11 00:53:56 by eduwer           ###   ########.fr       */
+/*   Updated: 2020/10/11 13:05:28 by eduwer           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,11 +14,17 @@
 
 void	print_help(void)
 {
-	printf("Usage: ft_ping [options] <destination>\n\nOptions:\n  \
-<destination>\tdomain name or ip v4 address\n  \
--v\t\tverbose output\n  \
--t <number>\tset ttl (must be between 1 and 255)\n  \
--h\t\tprint this help and exit\n");
+	printf("Usage: ft_ping [options] <destination>\n\nOptions:\
+\n  <destination>\tdomain name or ip v4 address\
+\n  -c <count>\tstop after <count> replies (negative or 0 for infinite)\
+\n	-D\t\tprint timestamps\
+\n  -h\t\tprint this help and exit\
+\n  -i <interval>\tinterval between sending each packet (in ms) (default 1000)\
+\n  -m\t\tno dns resolution\
+\n  -t <number>\tset ttl (must be between 1 and 255)\
+\n  -v\t\tverbose output\
+\n  -W <number>\tset request timeout\
+\n");
 	exit(0);
 }
 

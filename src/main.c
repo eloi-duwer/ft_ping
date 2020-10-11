@@ -6,7 +6,7 @@
 /*   By: eduwer <eduwer@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2020/06/30 18:34:20 by eduwer            #+#    #+#             */
-/*   Updated: 2020/10/10 23:17:47 by eduwer           ###   ########.fr       */
+/*   Updated: 2020/10/11 13:19:09 by eduwer           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,7 +17,12 @@ t_infos	g_infos =
 	.seq = 0,
 	.verbose = false,
 	.ttl = 64,
-	.addr_name = NULL
+	.addr_name = NULL,
+	.timeout = 10,
+	.no_dns = false,
+	.print_timestamps = false,
+	.stop_count = 0,
+	.ping_interval = 1000
 };
 
 void	get_address(char *str)
@@ -45,15 +50,19 @@ void	parse_args(int ac, char **av)
 	{
 		if (av[i][0] == '-')
 		{
-			if (strcmp(av[i], "-h") == 0)
+			if (ft_strcmp(av[i], "-h") == 0)
 				print_help();
-			else if (strcmp(av[i], "-v") == 0)
+			else if (ft_strcmp(av[i], "-v") == 0)
 				g_infos.verbose = true;
-			else if (strcmp(av[i], "-t") == 0)
+			else if (ft_strcmp(av[i], "-n") == 0)
+				g_infos.no_dns = true;
+			else if (ft_strcmp(av[i], "-D") == 0)
+				g_infos.print_timestamps = true;
+			else if (ft_strcmp(av[i], "-t") == 0)
 			{
 				if (i == ac - 1)
 				{
-					printf("ttl must be an integer between 1 and 255\n");
+					printf("ttl needs an integer between 1 and 255\n");
 					exit(1);
 				}
 				g_infos.ttl = atoi(av[i + 1]);
@@ -64,9 +73,40 @@ void	parse_args(int ac, char **av)
 				}
 				i++;
 			}
+			else if (ft_strcmp(av[i], "-W") == 0)
+			{
+				if (i == ac - 1)
+				{
+					printf("timeout needs a positive integer\n");
+					exit(1);
+				}
+				g_infos.timeout = (unsigned int)atoi(av[i + 1]);
+				i++;
+			}
+			else if (ft_strcmp(av[i], "-c") == 0)
+			{
+				if (i == ac - 1)
+				{
+					printf("Count needs an integer\n");
+					exit(1);
+				}
+				g_infos.stop_count = atoi(av[i + 1]);
+				i++;
+			}
+			else if (ft_strcmp(av[i], "-i") == 0)
+			{
+				if (i == ac - 1)
+				{
+					printf("Interval needs an integer\n");
+					exit(1);
+				}
+				g_infos.ping_interval = (unsigned int)atoi(av[i + 1]);
+				i++;
+			}
 			else
 			{
 				printf("Unrecognized option: %s\n", av[i]);
+				exit(1);
 			}
 			
 		}
@@ -82,7 +122,7 @@ void	create_socket()
 {
 	struct timeval	timeout;		
 
-	timeout.tv_sec = 5;
+	timeout.tv_sec = g_infos.timeout;
 	timeout.tv_usec = 0;
 	g_infos.sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 	if (g_infos.sockfd == -1)
@@ -140,6 +180,17 @@ void	print_start_ping(void)
 	printf("PING %s (%s) %d(%ld) bytes of data.\n", g_infos.addr_name, dest, PAYLOAD_SIZE, sizeof(t_echo_req));
 }
 
+void	start_timer()
+{
+	struct itimerval	timer;
+
+	timer.it_value.tv_sec = g_infos.ping_interval / 1000;
+	timer.it_value.tv_usec = (g_infos.ping_interval * 1000) % 1000000;
+	ft_memcpy(&timer.it_interval, &timer.it_value, sizeof(struct timeval));
+	if (setitimer(ITIMER_REAL, &timer, NULL) == -1)
+		perror_and_exit("Error during setitimer");
+}
+
 int		main(int argc, char **argv)
 {
 	if (argc == 1)
@@ -150,6 +201,7 @@ int		main(int argc, char **argv)
 	create_socket();
 	init_stats();
 	print_start_ping();
+	start_timer();
 	send_ping(0);
 	await_pongs();
 	return (0);

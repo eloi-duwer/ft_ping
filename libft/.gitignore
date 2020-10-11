@@ -1,0 +1,4 @@
+obj/**/*.o
+libft.a
+test/main
+test/.gdb_history
